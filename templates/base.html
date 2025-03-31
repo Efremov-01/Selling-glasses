@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpticBox</title>
+    <link rel="stylesheet" href="{% static 'styles.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Aboreto&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <a href="/" class="logo">OpticBox</a>
+            <div class="search-container">
+                <form method="GET" action="" class="filter-form">
+                    <input type="text" class="search-input" placeholder="Поиск..." name="search" value="{{ search_query }}">
+                    <button type="submit" class="filter-button">Применить</button>
+                </form>
+            </div>
+        </header>
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+                <!-- Фиксированная корзина -->
+        <div class="fixed-cart">
+            <a href="{% url 'cart_detail' %}" class="cart-link">Корзина ({{ cart_count }} товаров)</a>
+            <span class="cart-total">{{ total_price }} ₽</span>
+        </div>
+        <footer class="footer">
+            <p>&copy; 2025 OpticBox. Все права защищены.</p>
+        </footer>
+        
+
+    </div>
+</body>
+</html>

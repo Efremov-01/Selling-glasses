@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ lens.name }}{% endblock %}
+
+{% block content %}
+    <div class="product-detail">
+        <h1 class="product-title">{{ lens.name }}</h1>
+        <img src="{{ lens.image_url }}" alt="{{ lens.name }}" class="product-image">
+        <p class="product-price">Цена: {{ lens.price }} ₽</p>
+        <p class="product-description">{{ lens.description }}</p>
+
+        <!-- Форма для добавления в корзину -->
+        <form method="POST" action="{% url 'add_to_cart' lens.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-add-to-cart">Добавить в заявку</button>
+        </form>
+    </div>
+{% endblock %}
