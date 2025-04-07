@@ -13,7 +13,9 @@
 <body>
     <div class="container">
         <header class="header">
-            <a href="/" class="logo">OpticBox</a>
+            <a href="/" class="header-logo">
+                <img src="{{ LOGO_URL }}" alt="OpticBox Logo" class="logo-image">
+            </a>
             <div class="search-container">
                 <form method="GET" action="" class="filter-form">
                     <input type="text" class="search-input" placeholder="Поиск..." name="search" value="{{ search_query }}">

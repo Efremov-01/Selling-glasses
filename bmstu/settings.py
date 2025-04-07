@@ -127,3 +127,18 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# settings.py
+
+# ... остальные настройки ...
+
+# MinIO Configuration
+MINIO_ENDPOINT = '127.0.0.1:9000'  # или ваш адрес MinIO
+MINIO_ACCESS_KEY = 'minio'         # из вашего docker-compose.yml
+MINIO_SECRET_KEY = 'minio124'      # из вашего docker-compose.yml
+MINIO_BUCKET_NAME = 'opticbox'     # имя вашего бакета
+MINIO_SECURE = False              # True если используете https
+MINIO_STATIC_URL = f'http://{MINIO_ENDPOINT}/{MINIO_BUCKET_NAME}/'
+
+LOGO_URL = f'{MINIO_STATIC_URL}logo.jpg'
