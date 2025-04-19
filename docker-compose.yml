@@ -1,0 +1,23 @@
+version: '3.7'
+
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2022-10-15T19-57-03Z
+    command: server --console-address ":9001" /data
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio124
+    ports:
+      - "9000:9000"  # S3 API порт
+      - "9001:9001"  # Консоль администратора
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  minio_data:

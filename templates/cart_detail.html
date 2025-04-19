@@ -2,8 +2,12 @@
 {% load static %}
 {% block content %}
 <div class="cart">
-    <h1>Корзина</h1>
+    <h1>Заявка</h1>
+
     {% if cart %}
+        <p><strong>ФИО:</strong> {{ customer_info.name }}</p>
+        <p><strong>Дата готовности:</strong> {{ customer_info.ready_date }}</p>
+
         <ul class="cart-items">
             {% for key, item in cart.items %}
                 <li class="cart-item">
@@ -11,14 +15,12 @@
                     <div class="cart-item-info">
                         <span class="cart-item-name">{{ item.name }}</span>
                         <span class="cart-item-price">{{ item.price }} ₽</span>
+                        <span class="cart-item-comment">Комментарий: {{ item.comment }}</span>
                     </div>
-                    <form method="POST" action="{% url 'remove_from_cart' item.id %}" class="cart-item-remove">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-remove">×</button>
-                    </form>
                 </li>
             {% endfor %}
         </ul>
+
         <div class="cart-total">
             <span>Итого:</span>
             <span class="total-price">{{ total_price }} ₽</span>

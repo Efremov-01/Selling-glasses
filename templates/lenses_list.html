@@ -3,9 +3,6 @@
 {% block title %}Список линз{% endblock %}
 
 {% block content %}
-
-
-
 <!-- Основной контент -->
 <div class="main-content">
     <!-- Боковая панель с фильтрами -->
@@ -40,16 +37,9 @@
                 <img src="{{ lens.image_url }}" alt="{{ lens.name }}" class="product-image">
                 <h2 class="product-title">{{ lens.name }}</h2>
                 <p class="product-price">Цена: {{ lens.price }} ₽</p>
-                
 
                 <!-- Кнопка "Подробнее" с ссылкой -->
                 <a href="{% url 'lenses_detail' lens.id %}" class="details-button">Подробнее</a>
-
-                <!-- Форма для добавления в корзину -->
-                <form method="POST" action="{% url 'add_to_cart' lens.id %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-add-to-cart">Добавить в заявку</button>
-                </form>
             </div>
         {% endfor %}
     </div>

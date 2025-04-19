@@ -16,26 +16,29 @@
             <a href="/" class="header-logo">
                 <img src="{{ LOGO_URL }}" alt="OpticBox Logo" class="logo-image">
             </a>
+            {% if request.path == '/' %}
             <div class="search-container">
                 <form method="GET" action="" class="filter-form">
-                    <input type="text" class="search-input" placeholder="Поиск..." name="search" value="{{ search_query }}">
+                    <input type="text" class="search-input" placeholder="Поиск очковых линз" name="search-lenses" value="{{ search_query }}">
                     <button type="submit" class="filter-button">Применить</button>
                 </form>
             </div>
+            {% endif %}
         </header>
         <main class="main-content">
             {% block content %}{% endblock %}
         </main>
-                <!-- Фиксированная корзина -->
+
+        {% if request.path == '/' %}
         <div class="fixed-cart">
             <a href="{% url 'cart_detail' %}" class="cart-link">Корзина ({{ cart_count }} товаров)</a>
             <span class="cart-total">{{ total_price }} ₽</span>
         </div>
+        {% endif %}
+
         <footer class="footer">
             <p>&copy; 2025 OpticBox. Все права защищены.</p>
         </footer>
-        
-
     </div>
 </body>
 </html>
