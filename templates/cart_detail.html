@@ -5,17 +5,28 @@
     <h1>Заявка</h1>
 
     {% if cart %}
-        <p><strong>ФИО:</strong> {{ customer_info.name }}</p>
-        <p><strong>Дата готовности:</strong> {{ customer_info.ready_date }}</p>
+        <p><strong>ФИО:</strong> {{ cart.full_name }}</p>
+        <p><strong>Адрес:</strong> {{ cart.address }}</p>
+       
+        {% if customer_info.ready_date %}
+            <p><strong>Дата готовности:</strong> {{ customer_info.ready_date }}</p>
+        {% endif %}
 
         <ul class="cart-items">
-            {% for key, item in cart.items %}
+            {% for item in items %}
                 <li class="cart-item">
-                    <img src="{{ item.image_url }}" alt="{{ item.name }}" class="cart-item-image">
+                    <img src="{{ item.lens.image_url }}" alt="{{ item.lens.name }}" class="cart-item-image">
                     <div class="cart-item-info">
-                        <span class="cart-item-name">{{ item.name }}</span>
-                        <span class="cart-item-price">{{ item.price }} ₽</span>
-                        <span class="cart-item-comment">Комментарий: {{ item.comment }}</span>
+                        <span class="cart-item-name">{{ item.lens.name }}</span>
+                        <span class="cart-item-price">{{ item.lens.price }} ₽</span>
+
+                        <label>Комментарий (диоптрии):</label>
+                        <input type="text"
+                            name="comment"
+                            value="{{ item.comment }}"
+                            data-item-id="{{ item.id }}"
+                            class="comment-input"
+                            placeholder="Л: -1.5, П: -2.0">
                     </div>
                 </li>
             {% endfor %}
@@ -25,8 +36,53 @@
             <span>Итого:</span>
             <span class="total-price">{{ total_price }} ₽</span>
         </div>
+
+        <!-- Кнопка логического удаления заявки -->
+        <form method="POST" action="{% url 'delete_request_sql' cart.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-remove">Удалить заявку</button>
+        </form>
+
     {% else %}
         <p class="cart-empty">Корзина пуста.</p>
     {% endif %}
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<!-- Передаём CSRF токен через глобальную переменную -->
+<script>
+    window.csrfToken = "{{ csrf_token }}";
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const commentInputs = document.querySelectorAll('.comment-input');
+
+    commentInputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            const itemId = this.dataset.itemId;
+            const comment = this.value;
+
+            fetch(`/cart/comment/${itemId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.csrfToken  // <-- исправлено
+                },
+                body: JSON.stringify({ comment: comment })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    alert('Ошибка сохранения комментария.');
+                }
+            })
+            .catch(error => {
+                alert('Ошибка отправки запроса.');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
+    

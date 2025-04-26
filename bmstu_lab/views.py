@@ -1,72 +1,113 @@
-from django.shortcuts import render
-from django.conf import settings
-from urllib.parse import urljoin
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.db import connection
+from .models import Lens, Request, RequestService, RequestStatus
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from datetime import timedelta
+import json
 
-# Функция для генерации URL MinIO
-def get_minio_url(filename):
-    return urljoin(settings.MINIO_STATIC_URL, filename)
-
-# Коллекция линз (без БД)
-lenses = [
-    {"id": 1, "name": "r+h EyeDrive ES 1.50 Nano S UV Plus линзы для вождения", "price": 23520,
-     "description": "Сферические линзы для ожидания с защитой от ультрафиолета.",
-     "image_url": get_minio_url("1.jpg")},
-    {"id": 2, "name": "Tokai 1.60 Transitions 7 PGC фотохромные линзы", "price": 14280,
-     "description": "Сферические традиционные (пластик).",
-     "image_url": get_minio_url("2.jpg")},
-    {"id": 3, "name": "Tokai Lutina 1.60 AS PGC P-UV очковые линзы", "price": 6980,
-     "description": "Очковые линзы с высоким индексом преломления.",
-     "image_url": get_minio_url("3.jpg")},
-    {"id": 4, "name": "Tokai 1.50 E50 HMC очковые линзы", "price": 1260,
-     "description": "Очистные линзы для повседневного использования.",
-     "image_url": get_minio_url("4.jpg")},
-    {"id": 5, "name": "Tokai 1.60 E60 HMC очковые линзы", "price": 1680,
-     "description": "Очковые линзы с улучшенной защитой.",
-     "image_url": get_minio_url("5.jpg")}
-]
-
-# Корзина (словарь с id товаров)
-cart = {
-    1: {"id": 1, "name": "r+h EyeDrive ES 1.50 Nano S UV Plus линзы для вождения", "price": 23520, "image_url": get_minio_url("1.jpg"), "comment": "Левая: -1.5, Правая: -2.0"},
-    3: {"id": 3, "name": "Tokai Lutina 1.60 AS PGC P-UV очковые линзы", "price": 6980, "image_url": get_minio_url("3.jpg"), "comment": "Левая: -2.25, Правая: -2.5"},
-}
-
-def get_cart_total():
-    return sum(item["price"] for item in cart.values())
-
+# Главная страница — список линз с фильтром
+@login_required
 def home(request):
     search_query = request.GET.get("search-lenses", "").strip().lower()
-
-    filtered_lenses = lenses
+    lenses = Lens.objects.filter(is_deleted=False)
     if search_query:
-        filtered_lenses = [l for l in lenses if search_query in l["name"].lower() or search_query in str(l["price"])]
+        lenses = lenses.filter(name__icontains=search_query)
+
+    # Получение черновика заявки
+    draft_request = Request.objects.filter(creator=request.user, status=RequestStatus.DRAFT).first()
+    cart_count = RequestService.objects.filter(request=draft_request).count() if draft_request else 0
+    total_price = sum(rs.lens.price for rs in RequestService.objects.filter(request=draft_request)) if draft_request else 0
 
     return render(request, "lenses_list.html", {
-        "lenses": filtered_lenses,
-        "cart_count": len(cart),
-        "total_price": get_cart_total(),
+        "lenses": lenses,
+        "cart_count": cart_count,
+        "total_price": total_price,
         "search_query": search_query,
-        "LOGO_URL": settings.LOGO_URL
+        "draft_request": draft_request,  # ⬅️ чтобы в шаблоне знать ID заявки
     })
 
+# Детальная страница линзы
+@login_required
 def lenses_detail(request, lens_id):
-    item = next((l for l in lenses if l["id"] == lens_id), None)
+    lens = get_object_or_404(Lens, pk=lens_id, is_deleted=False)
     return render(request, "lenses_detail.html", {
-        "lens": item,
-        "cart_count": len(cart),
-        "total_price": get_cart_total(),
-        "LOGO_URL": settings.LOGO_URL
+        "lens": lens
     })
 
-def cart_detail(request):
+# Добавление линзы в заявку (через ORM)
+@login_required
+def add_to_cart(request, lens_id):
+    if request.method == "POST":
+        lens = get_object_or_404(Lens, pk=lens_id, is_deleted=False)
+
+        # Найти или создать заявку в статусе "draft"
+        draft_request, created = Request.objects.get_or_create(
+            creator=request.user,
+            status=RequestStatus.DRAFT,
+            defaults={
+                'full_name': f"{request.user.last_name} {request.user.first_name}",
+                'address': '',
+            }
+        )
+
+        # Добавить линзу в заявку
+        RequestService.objects.get_or_create(
+            request=draft_request,
+            lens=lens,
+            defaults={"comment": ""}
+        )
+
+    return redirect("home")
+
+# Просмотр заявки по id
+@login_required
+def request_detail(request, request_id):
+    req = get_object_or_404(Request, id=request_id)
+
+    # Проверка доступа: только свой заказ или модератор
+    if req.creator != request.user and not request.user.is_staff:
+        return redirect('home')
+
+    items = RequestService.objects.filter(request=req)
+    total_price = sum(item.lens.price for item in items)
+
     customer_info = {
-        "name": "Корнеев Андрей Иванович",
-        "ready_date": "29.04.2025"
+        "name": req.full_name,
+        "ready_date": req.submitted_at + timedelta(days=2) if req.submitted_at else None
     }
-    return render(request, "cart_detail.html", {
-        "cart": cart,
-        "cart_count": len(cart),
-        "total_price": get_cart_total(),
-        "customer_info": customer_info,
-        "LOGO_URL": settings.LOGO_URL
+
+    return render(request, 'cart_detail.html', {
+        'cart': req,
+        'items': items,
+        'cart_count': len(items),
+        'total_price': total_price,
+        'customer_info': customer_info
     })
+
+# Логическое удаление заявки через SQL
+@login_required
+def delete_request_sql(request, request_id):
+    if request.method == "POST":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE bmstu_lab_request SET status = %s WHERE id = %s AND creator_id = %s",
+                ['deleted', request_id, request.user.id]
+            )
+    return redirect("home")
+
+# Обновление комментария к товару
+@login_required
+@csrf_exempt
+def update_comment(request, item_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            comment = data.get('comment')
+            item = RequestService.objects.get(id=item_id)
+            item.comment = comment
+            item.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

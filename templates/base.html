@@ -9,36 +9,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Aboreto&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+
+    {% block extra_js %}{% endblock %}
 </head>
 <body>
+    <header class="header">
+        <a href="/" class="header-logo">
+            <img src="{{ LOGO_URL }}" alt="OpticBox Logo" class="logo-image">
+        </a>
+    </header>
     <div class="container">
-        <header class="header">
-            <a href="/" class="header-logo">
-                <img src="{{ LOGO_URL }}" alt="OpticBox Logo" class="logo-image">
-            </a>
-            {% if request.path == '/' %}
-            <div class="search-container">
-                <form method="GET" action="" class="filter-form">
-                    <input type="text" class="search-input" placeholder="Поиск очковых линз" name="search-lenses" value="{{ search_query }}">
-                    <button type="submit" class="filter-button">Применить</button>
-                </form>
-            </div>
-            {% endif %}
-        </header>
         <main class="main-content">
             {% block content %}{% endblock %}
         </main>
 
-        {% if request.path == '/' %}
-        <div class="fixed-cart">
-            <a href="{% url 'cart_detail' %}" class="cart-link">Корзина ({{ cart_count }} товаров)</a>
-            <span class="cart-total">{{ total_price }} ₽</span>
-        </div>
-        {% endif %}
+            {% if request.path == '/' %}
+            <div class="fixed-cart">
+                {% if draft_request %}
+                <a href="{% url 'request_detail' draft_request.id %}" class="cart-link">
+                    Корзина ({{ cart_count }} товаров) — {{ total_price }} ₽
+                </a>
+                {% else %}
+                <span class="cart-link disabled">Корзина пуста</span>
+                {% endif %}
+            {% endif %}
 
-        <footer class="footer">
-            <p>&copy; 2025 OpticBox. Все права защищены.</p>
-        </footer>
+
     </div>
 </body>
 </html>
