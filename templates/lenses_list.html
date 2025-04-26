@@ -5,30 +5,14 @@
 {% block content %}
 <!-- Основной контент -->
 <div class="main-content">
-    <!-- Боковая панель с фильтрами -->
-    <aside class="sidebar">
-        <div class="filters">
-            <h3>Тип:</h3>
-            <ul>
-                <li>Традиционные линзы</li>
-                <li>Прогрессивные линзы</li>
-                <li>Линзы для вождения</li>
-                <li>Офисные линзы</li>
-                <li>Компьютерные линзы</li>
-                <li>Контроль миопии</li>
-            </ul>
-        </div>
-        <div class="features">
-            <h3>Особенности:</h3>
-            <ul>
-                <li>Прозрачные</li>
-                <li>Фотохромные</li>
-                <li>Солнцезащитные</li>
-                <li>Поляризованные</li>
-                <li>Спортивные</li>
-            </ul>
-        </div>
-    </aside>
+
+    <!-- Поиск -->
+    <div class="search-wrapper">
+        <form method="GET" action="" class="filter-form">
+            <input type="text" class="search-input" placeholder="Поиск очковых линз" name="search-lenses" value="{{ search_query }}">
+            <button type="submit" class="filter-button">Применить</button>
+        </form>
+    </div>
 
     <!-- Список линз -->
     <div class="products">
@@ -37,9 +21,12 @@
                 <img src="{{ lens.image_url }}" alt="{{ lens.name }}" class="product-image">
                 <h2 class="product-title">{{ lens.name }}</h2>
                 <p class="product-price">Цена: {{ lens.price }} ₽</p>
-
-                <!-- Кнопка "Подробнее" с ссылкой -->
+                
                 <a href="{% url 'lenses_detail' lens.id %}" class="details-button">Подробнее</a>
+                <form method="POST" action="{% url 'add_to_cart' lens.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="details-button">Добавить в заявку</button>
+                </form> 
             </div>
         {% endfor %}
     </div>

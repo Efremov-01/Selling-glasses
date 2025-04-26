@@ -16,41 +16,42 @@ body {
 
 /* Шапка */
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background-color: white;
     border-bottom: 1px solid #000000;
-    position: relative; /* Для позиционирования поисковой строки */
-}
-
-.logo {
-    font-size: 24px;
-    font-weight: bold;
-    color: #000000;
-    text-decoration: none;
-}
-
-.search-container {
-    position: absolute; /* Абсолютное позиционирование */
-    left: 50%; /* Центрирование по горизонтали */
-    transform: translateX(-50%); /* Смещение на половину ширины */
+    height: 80px; /* высота хедера */
     display: flex;
     align-items: center;
-    gap: 10px;
+    padding: 0 40px; /* отступы по бокам */
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+}
+
+.search-wrapper {
+    margin-top: 30px; /* Чтоб поиск был под хедером (примерно 80px хедер + отступ) */
+    text-align: center;
 }
 
 .filter-form {
     display: flex;
+    justify-content: center; /* Центрирование формы поиска */
     align-items: center;
     gap: 10px;
+    margin-bottom: 20px; /* Отступ снизу от поиска */
 }
 
 .search-input {
     padding: 8px;
     border: 1px solid #000000;
     border-radius: 8px;
-    width: 300px; /* Ширина поисковой строки */
+    width: 300px;
     font-size: 16px;
 }
 
@@ -80,43 +81,19 @@ body {
 }
 /* Основной контент */
 .main-content {
-    display: flex;
     margin-top: 20px;
     padding: 20px;
+
 }
 
-/* Боковая панель */
-.sidebar {
-    width: 250px;
-    margin-right: 20px;
-}
-
-.filters, .features {
-    margin-bottom: 20px;
-}
-
-.filters h3, .features h3 {
-    font-size: 18px;
-    margin-bottom: 10px;
-    color: #333;
-}
-
-.filters ul, .features ul {
-    list-style: none;
-    padding: 0;
-}
-
-.filters li, .features li {
-    margin-bottom: 8px;
-    font-size: 14px;
-    color: #333;
-}
 
 /* Карточки товаров */
 .products {
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
+    margin-top: 30px; /* Чтоб карточки шли ниже поиска */
+    justify-content: center;
 }
 
 .product-card {
@@ -435,3 +412,5 @@ body {
     font-size: 14px;
     margin-top: 3px;
 }
+
+

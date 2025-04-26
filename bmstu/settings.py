@@ -65,6 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'bmstu_lab.context_processors.logo_url',
             ],
         },
     },
@@ -142,3 +143,14 @@ MINIO_SECURE = False              # True если используете https
 MINIO_STATIC_URL = f'http://{MINIO_ENDPOINT}/{MINIO_BUCKET_NAME}/'
 
 LOGO_URL = f'{MINIO_STATIC_URL}logo.jpg'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'opticbox',
+        'USER': 'postgres',
+        'PASSWORD': 'postgres',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
