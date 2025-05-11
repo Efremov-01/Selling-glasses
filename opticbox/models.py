@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 
 class Lens(models.Model):
     name = models.CharField("Наименование", max_length=255)
-    description = models.TextField("Описание")  # Уже есть, всё ок
+    description = models.TextField("Описание")
     price = models.DecimalField("Цена", max_digits=10, decimal_places=2)
     is_deleted = models.BooleanField("Удалено", default=False)
     image_url = models.URLField("URL изображения", null=True, blank=True)
