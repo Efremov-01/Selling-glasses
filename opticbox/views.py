@@ -5,18 +5,20 @@ from django.utils import timezone
 from .models import Lens, Request, RequestService, RequestStatus
 from .serializers import LensSerializer, RequestSerializer, RequestServiceSerializer, UserSerializer
 from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 from opticbox.minio import upload_file_to_minio, delete_file_from_minio
 import uuid
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
+
 def get_current_user():
-    return User.objects.get(id=1)
+    return User.objects.get(username="acer")
 
 
-# --------- ЛИНЗЫ ----------
-class LensList(APIView):
+# --------- ЛИНЗЫ (5 запросов) ----------
+class LensListView(APIView):
     def get(self, request):
         lenses = Lens.objects.filter(is_deleted=False)
         user = get_current_user()
@@ -37,282 +39,233 @@ class LensList(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LensDetail(APIView):
-    def get_object(self, pk):
-        try:
-            return Lens.objects.get(pk=pk, is_deleted=False)
-        except Lens.DoesNotExist:
-            return None
-
+class LensDetailView(APIView):
     def get(self, request, pk):
-        lens = self.get_object(pk)
-        if not lens:
+        try:
+            lens = Lens.objects.get(pk=pk, is_deleted=False)
+            serializer = LensSerializer(lens)
+            return Response(serializer.data)
+        except Lens.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = LensSerializer(lens)
-        return Response(serializer.data)
 
     def put(self, request, pk):
-        lens = self.get_object(pk)
-        if not lens:
+        try:
+            lens = Lens.objects.get(pk=pk, is_deleted=False)
+            serializer = LensSerializer(lens, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Lens.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = LensSerializer(lens, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        lens = self.get_object(pk)
-        if not lens:
+        try:
+            lens = Lens.objects.get(pk=pk, is_deleted=False)
+            lens.is_deleted = True
+            if lens.image_url:
+                old_object_name = '/'.join(lens.image_url.split('/')[-2:])
+                delete_file_from_minio(old_object_name)
+                lens.image_url = None
+            lens.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Lens.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        lens.is_deleted = True
-        lens.image_url = None
-        lens.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class LensFilter(APIView):
-    def get(self, request):
-        name = request.query_params.get('name')
-        queryset = Lens.objects.filter(is_deleted=False)
-        if name:
-            queryset = queryset.filter(name__icontains=name)
-        serializer = LensSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class LensAddToCart(APIView):
+class LensImageUploadView(APIView):
     def post(self, request, pk):
         try:
             lens = Lens.objects.get(pk=pk, is_deleted=False)
+            file = request.FILES.get('image')
+            if not file:
+                return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if lens.image_url:
+                old_object_name = '/'.join(lens.image_url.split('/')[-2:])
+                delete_file_from_minio(old_object_name)
+
+            filename = f"{uuid.uuid4().hex}_{file.name}"
+            object_name = f"lenses/{lens.id}/{filename}"
+            minio_url = upload_file_to_minio(file, object_name)
+
+            lens.image_url = minio_url
+            lens.save()
+            return Response({'status': 'image uploaded', 'url': minio_url})
         except Lens.DoesNotExist:
             return Response({"error": "Lens not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        user = get_current_user()
-        draft, created = Request.objects.get_or_create(
-            creator=user,
-            status=RequestStatus.DRAFT,
-            defaults={'address': '', 'full_name': ''}
-        )
-        RequestService.objects.get_or_create(request=draft, lens=lens)
-        return Response({'status': 'added to cart'})
 
-
-class LensUploadImage(APIView):
+class LensAddToDraftView(APIView):
     def post(self, request, pk):
         try:
             lens = Lens.objects.get(pk=pk, is_deleted=False)
+            user = get_current_user()
+            draft, _ = Request.objects.get_or_create(
+                creator=user,
+                status=RequestStatus.DRAFT,
+                defaults={'address': '', 'full_name': ''}
+            )
+            RequestService.objects.get_or_create(request=draft, lens=lens)
+            return Response({'status': 'added to cart'})
         except Lens.DoesNotExist:
             return Response({"error": "Lens not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        file = request.FILES.get('image')
-        if not file:
-            return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if lens.image_url:
-            old_object_name = '/'.join(lens.image_url.split('/')[-2:])
-            delete_file_from_minio(old_object_name)
-
-        filename = f"{uuid.uuid4().hex}_{file.name}"
-        object_name = f"lenses/{lens.id}/{filename}"
-        minio_url = upload_file_to_minio(file, object_name)
-
-        lens.image_url = minio_url
-        lens.save()
-        return Response({'status': 'image uploaded', 'url': minio_url})
-
-
-# --------- ЗАЯВКИ ----------
-class RequestList(APIView):
+# --------- ЗАЯВКИ (7 запросов) ----------
+class RequestListView(APIView):
     def get(self, request):
         user = get_current_user()
-        queryset = Request.objects.exclude(status=RequestStatus.DELETED).filter(creator=user)
+        queryset = Request.objects.exclude(status__in=[RequestStatus.DELETED, RequestStatus.DRAFT])
 
-        status_filter = request.query_params.get('status')
-        date_from = request.query_params.get('date_from')
-        date_to = request.query_params.get('date_to')
-
-        if status_filter:
+        if status_filter := request.query_params.get('status'):
             queryset = queryset.filter(status=status_filter)
-        if date_from and date_to:
-            queryset = queryset.filter(submitted_at__range=[date_from, date_to])
+        if date_from := request.query_params.get('date_from'):
+            if date_to := request.query_params.get('date_to'):
+                queryset = queryset.filter(submitted_at__range=[date_from, date_to])
 
         serializer = RequestSerializer(queryset, many=True)
         return Response(serializer.data)
 
 
-class RequestDetail(APIView):
-    def get_object(self, pk):
-        try:
-            return Request.objects.get(pk=pk)
-        except Request.DoesNotExist:
-            return None
-
+class RequestDetailView(APIView):
     def get(self, request, pk):
-        req = self.get_object(pk)
-        if not req:
+        try:
+            # Получаем заявку по pk
+            req = Request.objects.get(pk=pk)
+
+            # Получаем все услуги, связанные с этой заявкой
+            services = RequestService.objects.filter(request=req)
+
+            # Сериализуем заявку
+            request_serializer = RequestSerializer(req)
+            # Сериализуем услуги
+            services_serializer = RequestServiceSerializer(services, many=True)
+
+            # Возвращаем данные заявки и услуг
+            return Response({
+                'request': request_serializer.data,
+                'services': services_serializer.data
+            })
+
+        except Request.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = RequestSerializer(req)
-        return Response(serializer.data)
 
     def put(self, request, pk):
-        req = self.get_object(pk)
-        if not req:
+        try:
+            req = Request.objects.get(pk=pk)
+            data = {k: v for k, v in request.data.items() if
+                    k not in ['status', 'creator', 'moderator', 'created_at', 'submitted_at', 'completed_at']}
+            serializer = RequestSerializer(req, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Request.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        data = request.data.copy()
-        for field in ['status', 'creator', 'moderator', 'created_at', 'submitted_at', 'completed_at']:
-            data.pop(field, None)
-
-        serializer = RequestSerializer(req, data=data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        req = self.get_object(pk)
-        if not req:
+        try:
+            req = Request.objects.get(pk=pk)
+            req.status = RequestStatus.DELETED
+            req.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Request.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        req.status = RequestStatus.DELETED
-        req.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class RequestSubmit(APIView):
+class RequestSubmitView(APIView):
     def put(self, request, pk):
         try:
-            req = Request.objects.get(pk=pk)
+            req = Request.objects.get(pk=pk, status=RequestStatus.DRAFT)
+            if not req.address or not req.full_name:
+                return Response({"error": "Fill required fields"}, status=status.HTTP_400_BAD_REQUEST)
+            req.status = RequestStatus.FORMULATED
+            req.submitted_at = timezone.now()
+            req.save()
+            return Response({'status': 'submitted'})
         except Request.DoesNotExist:
             return Response({"error": "Request not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if req.status != RequestStatus.DRAFT:
-            return Response({"error": "Only draft can be submitted"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not req.address or not req.full_name:
-            return Response({"error": "Fill required fields"}, status=status.HTTP_400_BAD_REQUEST)
+class RequestCompleteView(APIView):
+    """
+    PUT /api/requests/{id}/complete/
+    Требуемые поля:
+    - action: "complete" или "decline"
+    """
 
-        req.status = RequestStatus.FORMULATED
-        req.submitted_at = timezone.now()
-        req.save()
-        return Response({'status': 'submitted'})
-
-
-class RequestComplete(APIView):
     def put(self, request, pk):
-        try:
-            req = Request.objects.get(pk=pk)
-        except Request.DoesNotExist:
-            return Response({"error": "Request not found"}, status=status.HTTP_404_NOT_FOUND)
+        # Получаем заявку по id
+        req = get_object_or_404(Request, pk=pk, status=RequestStatus.FORMULATED)
 
-        if req.status != RequestStatus.FORMULATED:
-            return Response({"error": "Only formulated can be completed"}, status=status.HTTP_400_BAD_REQUEST)
+        user = get_current_user()  # вместо request.user
 
-        req.status = RequestStatus.COMPLETED
+        # Проверка на роль модератора
+        if not user.is_staff:
+            return Response(
+                {"detail": "Только для модераторов"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        action = request.data.get('action')
+
+        if not action:
+            return Response(
+                {"detail": "Поле 'action' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Обработка действия
+        if action == 'complete':
+            req.status = RequestStatus.COMPLETED
+            req.moderator = user
+            req.total_price = sum(
+                service.lens.price
+                for service in req.requestservice_set.all()
+            )
+        elif action == 'decline':
+            req.status = RequestStatus.DECLINED
+        else:
+            return Response(
+                {"detail": "Недопустимое действие (complete/decline)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Устанавливаем модератора и дату завершения
+        req.moderator = request.user
         req.completed_at = timezone.now()
-        req.moderator = get_current_user()
         req.save()
 
-        total_price = sum([s.lens.price for s in req.requestservice_set.all()])
-        return Response({'status': 'completed', 'total_price': total_price})
+        # Возвращаем обновленную заявку
+        return Response(RequestSerializer(req).data)
 
 
-class RequestDecline(APIView):
-    def put(self, request, pk):
-        try:
-            req = Request.objects.get(pk=pk)
-        except Request.DoesNotExist:
-            return Response({"error": "Request not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        if req.status != RequestStatus.FORMULATED:
-            return Response({"error": "Only formulated can be declined"}, status=status.HTTP_400_BAD_REQUEST)
-
-        req.status = RequestStatus.DECLINED
-        req.completed_at = timezone.now()
-        req.moderator = get_current_user()
-        req.save()
-        return Response({'status': 'declined'})
-
-
-# --------- УСЛУГИ В ЗАЯВКАХ ----------
-class RequestServiceList(APIView):
-    def get(self, request):
-        user = get_current_user()
-        services = RequestService.objects.filter(request__creator=user)
-
-        request_id = request.query_params.get('request_id')
-        if request_id:
-            services = services.filter(request_id=request_id)
-
-        serializer = RequestServiceSerializer(services, many=True)
-        return Response(serializer.data)
-
-    def post(self, request):
-        serializer = RequestServiceSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class RequestServiceDetail(APIView):
-    def get_object(self, pk):
-        try:
-            return RequestService.objects.get(pk=pk)
-        except RequestService.DoesNotExist:
-            return None
-
-    def get(self, request, pk):
-        service = self.get_object(pk)
-        if not service:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = RequestServiceSerializer(service)
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        service = self.get_object(pk)
-        if not service:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        serializer = RequestServiceSerializer(service, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk):
-        service = self.get_object(pk)
-        if not service:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        service.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class RequestServiceUpdateComment(APIView):
+# --------- УСЛУГИ В ЗАЯВКАХ (3 запроса) ----------
+class RequestServiceUpdateView(APIView):
     def put(self, request):
-        req_id = request.data.get('request')
-        lens_id = request.data.get('lens')
-        comment = request.data.get('comment')
-
         try:
-            service = RequestService.objects.get(request_id=req_id, lens_id=lens_id)
+            service = RequestService.objects.get(
+                request_id=request.data.get('request'),
+                lens_id=request.data.get('lens')
+            )
+            if 'quantity' in request.data:
+                service.quantity = request.data['quantity']
+            if 'comment' in request.data:
+                service.comment = request.data['comment']
+            service.save()
+            return Response({"status": "updated"})
         except RequestService.DoesNotExist:
             return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        service.comment = comment
-        service.save()
-        return Response({"status": "comment updated"})
-
-
-class RequestServiceRemove(APIView):
     def delete(self, request):
-        req_id = request.data.get('request')
-        lens_id = request.data.get('lens')
-
         try:
-            service = RequestService.objects.get(request_id=req_id, lens_id=lens_id)
+            service = RequestService.objects.get(
+                request_id=request.data.get('request'),
+                lens_id=request.data.get('lens')
+            )
             service.delete()
-            return Response({"status": "service removed"})
+            return Response({"status": "removed"})
         except RequestService.DoesNotExist:
             return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -330,6 +283,7 @@ class RegisterView(APIView):
             user = serializer.save()
             return Response({"message": "User registered successfully."}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # PUT обновление профиля (личный кабинет)
 @method_decorator(csrf_exempt, name='dispatch')
