@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Lens, Request, RequestService
+from django.contrib.auth.admin import UserAdmin
+
+from .models import Lens, Request, RequestService, CustomUser
 
 
 @admin.register(Lens)
@@ -28,3 +30,26 @@ class RequestAdmin(admin.ModelAdmin):
 class RequestServiceAdmin(admin.ModelAdmin):
     list_display = ('request', 'lens', 'comment')
     search_fields = ("request__id", "lens__name")
+
+
+class CustomUserAdmin(UserAdmin):
+    model = CustomUser
+    list_display = ('email', 'is_staff', 'is_superuser', 'is_active')
+    list_filter = ('is_staff', 'is_superuser', 'is_active')
+    search_fields = ('email',)
+    ordering = ('email',)
+
+    fieldsets = (
+        (None, {'fields': ('email', 'password')}),
+        ('Permissions', {'fields': ('is_staff', 'is_superuser', 'is_active', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login',)}),
+    )
+
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'password1', 'password2', 'is_staff', 'is_superuser', 'is_active')}
+        ),
+    )
+
+admin.site.register(CustomUser, CustomUserAdmin)
