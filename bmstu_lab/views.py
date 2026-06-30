@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.conf import settings
 from urllib.parse import urljoin
 
+# функция
 # Функция для генерации URL MinIO
 def get_minio_url(filename):
     return urljoin(settings.MINIO_STATIC_URL, filename)
